@@ -74,10 +74,12 @@ from transformers import pipeline
 def baseline_rag(question):
     retrieved_documents = retrieve_top_k(question)
     context = " ".join(retrieved_documents)
-    input_text = f"Question: {question}\nContext: {context}\nAnswer ((answer the question with the given context)):"
-    pipe = pipeline("text-generation", model="microsoft/phi-2")
-    generated = pipe(input_text, max_new_tokens=100, num_return_sequences=1)
-    #answer = generated[0]['generated_text'].strip()
+    input_text = f"Answer the question with given context: {question}\nContext: {context}\nAnswer:"
+    generated = gen(base_model, input_text, 100)
+    # Print the full generated output for debugging
+    print("Full generated output:", generated)
+
+    # Get the generated text and remove the input_text part to isolate the answer
     full_generated_text = generated[0]
     answer = full_generated_text.replace(input_text, '').strip()
 
@@ -91,7 +93,7 @@ def baseline_rag(question):
         answer = "Answer not found or incorrect extraction"
 
     print("Extracted Answer:", answer)
-    return answer
+    return answer, context
     
 
 
@@ -100,29 +102,29 @@ def baseline_rag(question):
 
 def calculate_accuracy(predefined_qa_pairs):
     correct_answers = 0
-    answer_dict ={}
+    answer_dict = {}
     for qa_pair in predefined_qa_pairs:
         question = qa_pair["question"]
         expected_answer = qa_pair["answer"].strip().lower().split()  # Split into words and handle case
+        expected_context = " ".join(qa_pair["chunks"])  # Combine chunks to form the expected context
 
         # Generate an answer using the baseline_rag function
-        generated_answer = baseline_rag(question)
-        print(f"Question: {question}")
-        print(f"Generated Answer: {generated_answer}")
-        print(f"Expected Answer: {expected_answer}")
+        generated_answer, retrieved_context = baseline_rag(question)
+        logging.info(f"Question: {question}")
+        logging.info(f"Generated Answer: {generated_answer}")
 
         # Check if the generated answer matches the expected answer up to the first three words
         if (len(expected_answer) >= 1 and generated_answer[:1] == expected_answer[:1]) or \
            (len(expected_answer) >= 2 and generated_answer[:2] == expected_answer[:2]) or \
            (len(expected_answer) >= 3 and generated_answer[:3] == expected_answer[:3]):
             correct_answers += 1
-        answer_dict[question] = {"expected": expected_answer, "generated": generated_answer}
-
-    # Calculate accuracy
-    accuracy = correct_answers / len(predefined_qa_pairs)
-
-    return accuracy, answer_dict
         
+        answer_dict[question] = {
+            "expected": expected_answer, 
+            "generated": generated_answer, 
+            "retrieved_context": retrieved_context,
+            "expected_context": expected_context
+        }
 
 
 if __name__ == "__main__":
@@ -612,9 +614,8 @@ if __name__ == "__main__":
     print(answer_dict)
     csv_filename = 'results.csv'
 
-    # Open the file in write mode
     with open(csv_filename, 'w', newline='', encoding='utf-8') as csvfile:
-        fieldnames = ['Question', 'Expected Answer', 'Generated Answer']
+        fieldnames = ['Question', 'Expected Answer', 'Generated Answer', 'Retrieved Context', 'Expected Context']
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
 
         # Write the header
@@ -625,7 +626,9 @@ if __name__ == "__main__":
             row = {
                 'Question': question,
                 'Expected Answer': ' '.join(answers['expected']),
-                'Generated Answer': ' '.join(answers['generated'])
+                'Generated Answer': answers['generated'],
+                'Retrieved Context': answers['retrieved_context'],
+                'Expected Context': answers['expected_context']
             }
             writer.writerow(row)
 

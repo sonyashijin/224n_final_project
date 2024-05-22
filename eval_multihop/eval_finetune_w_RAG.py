@@ -656,22 +656,22 @@ if __name__ == "__main__":
     csv_filename = 'baselineRAGresults.csv'
 
 # Open the file in write mode
-with open(csv_filename, 'w', newline='', encoding='utf-8') as csvfile:
-    fieldnames = ['Question', 'Expected Answer', 'Generated Answer', 'Retrieved Context', 'Expected Context']
-    writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+    with open(csv_filename, 'w', newline='', encoding='utf-8') as csvfile:
+        fieldnames = ['Question', 'Expected Answer', 'Generated Answer', 'Retrieved Context', 'Expected Context']
+        writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
 
-    # Write the header
-    writer.writeheader()
+        # Write the header
+        writer.writeheader()
 
-    # Write the data
-    for question, answers in answer_dict.items():
-        row = {
-            'Question': question,
-            'Expected Answer': ' '.join(answers['expected']),
-            'Generated Answer': answers['generated'],
-            'Retrieved Context': answers['retrieved_context'],
-            'Expected Context': answers['expected_context']
-        }
-        writer.writerow(row)
+        # Write the data
+        for question, answers in answer_dict.items():
+            row = {
+                'Question': question,
+                'Expected Answer': ' '.join(answers['expected']),
+                'Generated Answer': answers['generated'],
+                'Retrieved Context': answers['retrieved_context'],
+                'Expected Context': answers['expected_context']
+            }
+            writer.writerow(row)
 
-print(f"Results saved to {csv_filename}")
+    print(f"Results saved to {csv_filename}")
