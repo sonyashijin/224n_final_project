@@ -21,6 +21,54 @@ import numpy as np
 import csv
 
 import logging
+from datasets import load_dataset
+from transformers import (
+    AutoModelForCausalLM,
+    AutoTokenizer,
+    BitsAndBytesConfig,
+    HfArgumentParser,
+    AutoTokenizer,
+    TrainingArguments,
+    Trainer,
+    GenerationConfig
+)
+from tqdm import tqdm
+from trl import SFTTrainer
+import torch
+import time
+import pandas as pd
+import numpy as np
+
+import logging
+from transformers import AutoModelForCausalLM
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
+hf_token = os.getenv('HF_TOKEN')
+
+compute_dtype = getattr(torch, "float16")
+bnb_config = BitsAndBytesConfig(
+        load_in_4bit=True,
+        bnb_4bit_quant_type='nf4',
+        bnb_4bit_compute_dtype=compute_dtype,
+        bnb_4bit_use_double_quant=False,
+    )
+device_map = {"": 0}
+base_model_id = "microsoft/phi-2"
+base_model = AutoModelForCausalLM.from_pretrained(base_model_id,
+                                                      device_map='auto',
+                                                      quantization_config=bnb_config,
+                                                      trust_remote_code=True,
+                                                      use_auth_token=hf_token)
+eval_tokenizer = AutoTokenizer.from_pretrained(base_model_id, add_bos_token=True, trust_remote_code=True, use_fast=False)
+eval_tokenizer.pad_token = eval_tokenizer.eos_token
+
+def gen(model, p, maxlen=100, sample=True):
+    toks = eval_tokenizer(p, return_tensors="pt")
+    res = model.generate(**toks.to("cuda"), max_new_tokens=maxlen, do_sample=sample, num_return_sequences=1, temperature=0.1, num_beams=1, top_p=0.95).to('cpu')
+    return eval_tokenizer.batch_decode(res, skip_special_tokens=True)
+
 
 # Setup basic configuration for logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -29,7 +77,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 logging.info("This is an info message")
 
 # Load documents from pickle file
-with open('loaded_articles_2024_new.pkl', 'rb') as f:
+with open('loaded_articles.pkl', 'rb') as f:
     documents = pickle.load(f)
 
 # Initialize text generation pipeline
@@ -46,8 +94,6 @@ text_splitter = CharacterTextSplitter(chunk_size=chunk_size, chunk_overlap=chunk
 def split_document(document):
     chunks = text_splitter.split_text(document.page_content)
     return [Document(page_content=chunk) for chunk in chunks]
-
-
 
 
 chunked_documents = []
@@ -97,9 +143,6 @@ def baseline_rag(question):
     
 
 
-
-
-
 def calculate_accuracy(predefined_qa_pairs):
     correct_answers = 0
     answer_dict = {}
@@ -125,6 +168,10 @@ def calculate_accuracy(predefined_qa_pairs):
             "retrieved_context": retrieved_context,
             "expected_context": expected_context
         }
+        
+    accuracy = correct_answers / len(predefined_qa_pairs)
+
+    return accuracy, answer_dict
 
 
 if __name__ == "__main__":
@@ -612,7 +659,7 @@ if __name__ == "__main__":
     accuracy, answer_dict = calculate_accuracy(predefined_qa_pairs)
     print(f"Accuracy: {accuracy}")
     print(answer_dict)
-    csv_filename = 'results.csv'
+    csv_filename = 'baselineRAGresults.csv'
 
     with open(csv_filename, 'w', newline='', encoding='utf-8') as csvfile:
         fieldnames = ['Question', 'Expected Answer', 'Generated Answer', 'Retrieved Context', 'Expected Context']

@@ -653,7 +653,7 @@ if __name__ == "__main__":
     accuracy, answer_dict = calculate_accuracy(predefined_qa_pairs)
     print(f"Accuracy: {accuracy}")
     print(answer_dict)
-    csv_filename = 'baselineRAGresults.csv'
+    csv_filename = 'finetuneRAGresults.csv'
 
 # Open the file in write mode
     with open(csv_filename, 'w', newline='', encoding='utf-8') as csvfile:
